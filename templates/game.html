@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>鋤大Dee - 終極版</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #2e5a2e; color: white; }
+        .game-container { max-width: 1200px; margin: auto; background: #1e3a1e; padding: 20px; border-radius: 20px; }
+        .hand { display: flex; justify-content: center; flex-wrap: wrap; margin: 20px; min-height: 120px; }
+        .card {
+            width: 70px; height: 100px; border: 2px solid gold; border-radius: 10px;
+            margin: 5px; display: inline-flex; align-items: center; justify-content: center;
+            font-size: 28px; background: white; color: black; cursor: pointer;
+            transition: 0.2s; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            user-select: none;
+        }
+        .card.selected { background: #aaffaa; border: 4px solid red; transform: scale(1.02); }
+        .info { background: #0f2b0f; padding: 15px; border-radius: 15px; margin: 15px; }
+        button { background: #ffaa33; border: none; padding: 10px 20px; font-size: 18px; border-radius: 30px; margin: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #ffcc55; }
+        #last-play { font-size: 24px; font-weight: bold; background: #000000aa; display: inline-block; padding: 5px 15px; border-radius: 30px; }
+        #message { font-size: 20px; margin-top: 20px; }
+        .turn-indicator { font-size: 22px; background: #d4af37; color: black; display: inline-block; padding: 5px 20px; border-radius: 40px; }
+        .error-msg { color: #ffaaaa; background: #660000; padding: 10px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <h1>🃏 鋤大Dee - 終極版 🃏</h1>
+    <div class="info">
+        <div class="turn-indicator" id="turn-indicator">載入中...</div>
+        <div>上一家出的牌：<span id="last-play">無</span></div>
+        <div>牌型：<span id="last-type">-</span></div>
+    </div>
+    <div class="hand" id="hand-container">
+        <div class="error-msg">載入手牌中...</div>
+    </div>
+    <div>
+        <button onclick="playCards()">🔥 出牌</button>
+        <button onclick="passTurn()">🚫 Pass</button>
+        <button onclick="resetGame()">🔄 新遊戲</button>
+    </div>
+    <div id="message"></div>
+</div>
+
+<script>
+    let myTurn = false;
+    let isProcessing = false;
+    let currentHandCards = [];
+    let selectedIndices = new Set();
+
+    const rankOrder = {'3':0,'4':1,'5':2,'6':3,'7':4,'8':5,'9':6,'10':7,'J':8,'Q':9,'K':10,'A':11,'2':12};
+    const suitOrder = {'♣':0,'♦':1,'♥':2,'♠':3};
+
+    async function fetchState() {
+        if (isProcessing) return;
+        isProcessing = true;
+        try {
+            const res = await fetch('/get_state');
+            const data = await res.json();
+            if (data.game_over) {
+                document.getElementById('message').innerHTML = `<h2>🏆 贏家：${data.winner} 🏆</h2>`;
+                document.getElementById('turn-indicator').innerText = "遊戲結束";
+                document.getElementById('hand-container').innerHTML = '<div class="error-msg">遊戲已結束，點選「新遊戲」繼續</div>';
+                isProcessing = false;
+                return;
+            }
+            myTurn = (data.current_player === 0);
+            document.getElementById('turn-indicator').innerHTML = myTurn ? "👈 你的回合 👈" : `🤖 AI ${data.current_player} 思考中 ...`;
+            if (data.last_play && data.last_play.length) {
+                document.getElementById('last-play').innerText = data.last_play.join(', ');
+            } else {
+                document.getElementById('last-play').innerText = "無 (新一輪)";
+            }
+            if (data.hands && data.hands[0] && Array.isArray(data.hands[0])) {
+                const rawHand = data.hands[0];
+                currentHandCards = [...rawHand].sort((a,b) => {
+                    let rankA = a.slice(1);
+                    let rankB = b.slice(1);
+                    if (rankOrder[rankA] !== rankOrder[rankB]) return rankOrder[rankA] - rankOrder[rankB];
+                    return suitOrder[a[0]] - suitOrder[b[0]];
+                });
+                selectedIndices.clear();
+                renderHand();
+            } else {
+                console.error("無效的手牌資料", data);
+                document.getElementById('hand-container').innerHTML = '<div class="error-msg">錯誤：無法讀取手牌，請按「新遊戲」</div>';
+            }
+            if (!myTurn && !data.game_over) {
+                setTimeout(() => aiMove(), 500);
+            }
+        } catch (err) {
+            console.error("fetchState 錯誤", err);
+            document.getElementById('hand-container').innerHTML = '<div class="error-msg">連線錯誤，請重新整理頁面</div>';
+        } finally {
+            isProcessing = false;
+        }
+    }
+
+    function renderHand() {
+        const container = document.getElementById('hand-container');
+        if (!currentHandCards || currentHandCards.length === 0) {
+            container.innerHTML = '<div class="error-msg">⚠️ 你沒有手牌！遊戲可能已結束，請按「新遊戲」</div>';
+            return;
+        }
+        container.innerHTML = '';
+        currentHandCards.forEach((card, idx) => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            if (selectedIndices.has(idx)) div.classList.add('selected');
+            div.innerText = card;
+            div.onclick = (e) => {
+                e.stopPropagation();
+                if (!myTurn) {
+                    alert("等待你的回合");
+                    return;
+                }
+                if (selectedIndices.has(idx)) {
+                    selectedIndices.delete(idx);
+                } else {
+                    selectedIndices.add(idx);
+                }
+                renderHand();
+            };
+            container.appendChild(div);
+        });
+    }
+
+    async function playCards() {
+        if (!myTurn) {
+            alert("等待你的回合");
+            return;
+        }
+        const selected = Array.from(selectedIndices);
+        if (selected.length === 0) {
+            alert("請選取要出的牌");
+            return;
+        }
+        if (isProcessing) return;
+        isProcessing = true;
+        try {
+            const res = await fetch('/play', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({indices: selected})
+            });
+            const data = await res.json();
+            if (data.status === 'error') {
+                alert(data.msg);
+            } else if (data.status === 'win') {
+                alert(`🎉 你贏了！ 🎉`);
+                location.reload();
+                return;
+            } else {
+                await fetchState();
+            }
+        } catch (err) {
+            console.error(err);
+            alert("出牌失敗，請重試");
+        } finally {
+            isProcessing = false;
+        }
+    }
+
+    async function passTurn() {
+        if (!myTurn) {
+            alert("現在不能 Pass");
+            return;
+        }
+        if (isProcessing) return;
+        isProcessing = true;
+        try {
+            const res = await fetch('/pass', {method: 'POST'});
+            const data = await res.json();
+            if (data.status === 'ok') {
+                await fetchState();
+            } else {
+                alert(data.msg);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            isProcessing = false;
+        }
+    }
+
+    async function aiMove() {
+        if (myTurn) return;
+        if (isProcessing) return;
+        isProcessing = true;
+        try {
+            const res = await fetch('/ai_move');
+            const data = await res.json();
+            if (data.status === 'win') {
+                alert(`🤖 ${data.winner} 獲勝！`);
+                location.reload();
+            } else if (data.status === 'play' || data.status === 'pass') {
+                await fetchState();
+            } else {
+                await fetchState();
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            isProcessing = false;
+        }
+    }
+
+    function resetGame() {
+        fetch('/reset').then(() => location.reload());
+    }
+
+    fetchState();
+    setInterval(() => {
+        if (!myTurn && !document.querySelector('#message h2')) {
+            fetchState();
+        }
+    }, 2000);
+</script>
+</body>
+</html>

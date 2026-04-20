@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  web1:
+    build: .
+    ports: ["5000:5000"]
+    depends_on: [db]
+  web2:
+    build: .
+    ports: ["5001:5000"]
+    depends_on: [db]
+  db:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: big2_game
+    volumes:
+      - data:/var/lib/mysql
+volumes:
+  data:
