@@ -85,11 +85,54 @@
             z-index: 10;
         }
         
+        /* 玩家（下方）- 只保留手牌在底部中央 */
         .player-bottom {
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             width: 90%;
+        }
+        
+        /* 玩家資訊面板 - 固定在左下角 */
+        .player-info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            padding: 12px 20px;
+            color: white;
+            font-weight: bold;
+            z-index: 15;
+            backdrop-filter: blur(5px);
+            border-left: 4px solid #f4c542;
+            min-width: 150px;
+        }
+        
+        .player-info-panel .player-name {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .player-info-panel .player-cards-count {
+            font-size: 28px;
+            color: #f4c542;
+            font-weight: bold;
+        }
+        
+        .player-info-panel .turn-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: gray;
+            margin-left: 10px;
+        }
+        
+        .player-info-panel .turn-indicator.active {
+            background: #f4c542;
+            box-shadow: 0 0 10px #f4c542;
+            animation: pulse 1s infinite;
         }
         
         .player-top {
@@ -402,6 +445,18 @@
                 white-space: normal;
                 word-break: keep-all;
             }
+            .player-info-panel {
+                bottom: 10px;
+                left: 10px;
+                padding: 8px 15px;
+                min-width: 120px;
+            }
+            .player-info-panel .player-name {
+                font-size: 14px;
+            }
+            .player-info-panel .player-cards-count {
+                font-size: 22px;
+            }
         }
     </style>
 </head>
@@ -417,6 +472,15 @@
     
     <!-- 遊戲主畫面 -->
     <div class="game-container" id="gameContainer">
+        <!-- 玩家資訊面板 - 固定在左下角 -->
+        <div class="player-info-panel" id="playerInfoPanel">
+            <div class="player-name">
+                👤 玩家
+                <span class="turn-indicator" id="turnIndicatorBottom"></span>
+            </div>
+            <div class="player-cards-count" id="playerCardsCount">13</div>
+        </div>
+        
         <!-- 上方玩家 (AI 1) -->
         <div class="player player-top">
             <div class="player-info">
@@ -447,13 +511,8 @@
             <div class="hand-cards" id="rightHand"></div>
         </div>
         
-        <!-- 下方玩家 (玩家) -->
+        <!-- 下方玩家手牌區域 (只顯示手牌，不顯示玩家資訊) -->
         <div class="player player-bottom">
-            <div class="player-info">
-                <span class="player-name">👤 玩家</span>
-                <span class="turn-indicator-small" id="turnBottom"></span>
-                <div class="player-cards-count" id="bottomCardsCount">13</div>
-            </div>
             <div class="hand-cards" id="bottomHand"></div>
         </div>
         
@@ -561,7 +620,11 @@
                 // 更新玩家手牌
                 if (data.hands && data.hands[0]) {
                     renderPlayerHand(data.hands[0]);
-                    document.getElementById('bottomCardsCount').innerHTML = data.hands[0].length;
+                    // 更新左下角面板的牌數
+                    const playerCardsCountElem = document.getElementById('playerCardsCount');
+                    if (playerCardsCountElem) {
+                        playerCardsCountElem.innerHTML = data.hands[0].length;
+                    }
                 }
                 
                 // 更新桌面中央的牌
@@ -594,8 +657,18 @@
         }
         
         function updateTurnIndicator(currentPlayer) {
+            // 更新左下角面板的回合指示器
+            const bottomIndicator = document.getElementById('turnIndicatorBottom');
+            if (bottomIndicator) {
+                if (currentPlayer === 0) {
+                    bottomIndicator.classList.add('active');
+                } else {
+                    bottomIndicator.classList.remove('active');
+                }
+            }
+            
+            // 更新對手的小指示器
             const indicators = {
-                bottom: document.getElementById('turnBottom'),
                 top: document.getElementById('turnTop'),
                 left: document.getElementById('turnLeft'),
                 right: document.getElementById('turnRight')
@@ -605,9 +678,12 @@
                 if (ind) ind.classList.remove('active');
             });
             
-            const playerKey = playerPositions[currentPlayer];
-            if (indicators[playerKey]) {
-                indicators[playerKey].classList.add('active');
+            if (currentPlayer === 1 && indicators.top) {
+                indicators.top.classList.add('active');
+            } else if (currentPlayer === 2 && indicators.left) {
+                indicators.left.classList.add('active');
+            } else if (currentPlayer === 3 && indicators.right) {
+                indicators.right.classList.add('active');
             }
         }
         
@@ -773,10 +849,12 @@
                     if (data.action === 'win') {
                         showWinner(data.winner);
                     } else if (data.action === 'play') {
-                        showMessage(`AI 出了 ${data.cards.length} 張牌`);
+                        const aiDisplayName = data.ai_name || 'AI';
+                        showMessage(`${aiDisplayName} 出了 ${data.cards.length} 張牌`);
                         await fetchGameState();
                     } else if (data.action === 'pass') {
-                        showMessage('AI Pass');
+                        const aiDisplayName = data.ai_name || 'AI';
+                        showMessage(`${aiDisplayName} Pass`);
                         await fetchGameState();
                     }
                 } else if (data.game_over) {

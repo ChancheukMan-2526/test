@@ -13,16 +13,9 @@ db = SQLAlchemy(app)
 
 # ---------- 隨機名字庫 ----------
 AI_NAMES = [
-    '李小龍', '葉問', '成龍', '李連杰', '周星馳', '劉德華', '張學友', '郭富城',
-    '王大明', '陳小美', '林志玲', '蔡依林', '周杰倫', '五月天', '蘇打綠',
-    '功夫熊貓', '龍貓', '皮卡丘', '哆啦A夢', '海賊王', '火影忍者', '死神',
-    '諸葛亮', '司馬懿', '關羽', '張飛', '趙雲', '馬超', '黃忠',
-    '李白', '杜甫', '白居易', '蘇東坡', '李清照',
-    '愛因斯坦', '牛頓', '愛迪生', '特斯拉', '達文西',
-    '柯南', '福爾摩斯', '金田一', '魯邦三世',
-    '鋼鐵人', '美國隊長', '雷神索爾', '黑寡婦', '浩克',
-    '哈利波特', '妙麗', '榮恩', '鄧不利多',
-    '白雪公主', '睡美人', '灰姑娘', '小紅帽'
+    '陳珈銘', '陳德楨', '陳賢峰', '陈星羽', '徐健強', '林奧深', '劉夢桐', '羅威', 
+    '梁駿豪', '李栢濂', '吳錕洋', '彭昊琛', '蘇炳杰', '戴卓宏', '鄧騏瑋', '鄧偉圖',
+    '丁家俊', '蔡繼晟', '黃詠濠', '楊一', '殷杰輝', '袁景軒','陳卓文','','陳賢峰', '鄧騏瑋','kitson','Harry'
 ]
 
 def get_random_names():
@@ -185,6 +178,11 @@ def find_best_move(hand, prev_cards):
     
     return None
 
+class GameRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    winner = db.Column(db.String(50), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
 # ---------- Flask 路由 ----------
 @app.route('/')
 def index():
@@ -326,6 +324,10 @@ def ai_move():
     if current == 0:
         return jsonify({'success': False, 'message': '玩家的回合'})
     
+    # 獲取AI名字
+    ai_names = session.get('ai_names', ['AI 1', 'AI 2', 'AI 3'])
+    ai_name = ai_names[current - 1]
+    
     hand = [Card(s[0], s[1:]) for s in session['hands'][current]]
     last_cards = None
     if session['last_cards']:
@@ -347,7 +349,7 @@ def ai_move():
             session['current_player'] = (current + 1) % 4
         
         session.modified = True
-        return jsonify({'success': True, 'action': 'pass', 'next_player': session['current_player']})
+        return jsonify({'success': True, 'action': 'pass', 'next_player': session['current_player'], 'ai_name': ai_name})
     else:
         new_hand = [c for c in hand if c not in move]
         session['hands'][current] = [str(c) for c in sort_cards(new_hand)]
@@ -356,17 +358,16 @@ def ai_move():
         session['pass_count'] = 0
         
         if len(new_hand) == 0:
-            ai_names = session.get('ai_names', ['AI 1', 'AI 2', 'AI 3'])
-            winner_name = ai_names[current - 1] if current <= 3 else f'AI {current}'
+            winner_name = ai_name
             session['game_over'] = True
             session['winner'] = winner_name
             db.session.add(GameRecord(winner=winner_name))
             db.session.commit()
-            return jsonify({'success': True, 'action': 'win', 'winner': winner_name})
+            return jsonify({'success': True, 'action': 'win', 'winner': winner_name, 'ai_name': ai_name})
         
         session['current_player'] = (current + 1) % 4
         session.modified = True
-        return jsonify({'success': True, 'action': 'play', 'cards': [str(c) for c in move], 'next_player': session['current_player']})
+        return jsonify({'success': True, 'action': 'play', 'cards': [str(c) for c in move], 'next_player': session['current_player'], 'ai_name': ai_name})
 
 if __name__ == '__main__':
     with app.app_context():
