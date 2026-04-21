@@ -230,21 +230,21 @@ def get_state():
         session['game_over'] = True
         db.session.add(GameRecord(winner="玩家"))
         db.session.commit()
-    if session.get('game_over'):
-        return jsonify({
-            'hands': session.get('hands'),
-            'current_player': session.get('current_player'),
-            'last_play': session.get('last_play'),
-            'winner': session.get('winner'),
-            'game_over': True
-        })
+    
+    # 確保 last_play 是有效的列表
+    last_play = session.get('last_play')
+    if last_play is None:
+        last_play = []
+    elif not isinstance(last_play, list):
+        last_play = []
+    
     return jsonify({
         'hands': session.get('hands'),
         'current_player': session.get('current_player'),
-        'last_play': session.get('last_play'),
+        'last_play': last_play,
         'last_player': session.get('last_player'),
         'winner': session.get('winner'),
-        'game_over': False
+        'game_over': session.get('game_over', False)
     })
 
 @app.route('/play', methods=['POST'])
@@ -269,6 +269,7 @@ def play():
     
     current_type, current_key = get_hand_type(selected)
     last_type, last_key = get_hand_type(last_cards) if last_cards else (None, None)
+    
     if current_type is None:
         return jsonify({'status': 'error', 'msg': '無效牌型'})
     if not can_beat(current_type, current_key, last_type, last_key):
@@ -304,16 +305,22 @@ def pass_turn():
         return jsonify({'status': 'error', 'msg': '不是你的回合'})
     
     session['pass_count'] += 1
+    
+    # 檢查是否三個人連續 Pass
     if session['pass_count'] >= 3:
+        # 清空 last_play，開始新一輪
         session['last_play'] = None
         session['last_player'] = None
         session['pass_count'] = 0
-        if session['round_owner'] is not None:
+        # 上一輪出牌的人開始新的一輪
+        if session.get('round_owner') is not None:
             session['current_player'] = session['round_owner']
         else:
             session['current_player'] = 0
+        session['round_owner'] = None
     else:
         session['current_player'] = (current + 1) % 4
+    
     session.modified = True
     return jsonify({'status': 'ok', 'next_player': session['current_player']})
 
@@ -339,10 +346,11 @@ def ai_move():
             session['last_play'] = None
             session['last_player'] = None
             session['pass_count'] = 0
-            if session['round_owner'] is not None:
+            if session.get('round_owner') is not None:
                 session['current_player'] = session['round_owner']
             else:
                 session['current_player'] = 0
+            session['round_owner'] = None
         else:
             session['current_player'] = (player + 1) % 4
         session.modified = True

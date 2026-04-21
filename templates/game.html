@@ -51,6 +51,23 @@
     const rankOrder = {'3':0,'4':1,'5':2,'6':3,'7':4,'8':5,'9':6,'10':7,'J':8,'Q':9,'K':10,'A':11,'2':12};
     const suitOrder = {'♣':0,'♦':1,'♥':2,'♠':3};
 
+    function getHandTypeFromCards(cards) {
+        if (!cards || cards.length === 0) return "-";
+        if (cards.length === 1) return "單張";
+        if (cards.length === 2) {
+            if (cards[0].slice(1) === cards[1].slice(1)) return "對子";
+            return "無效";
+        }
+        if (cards.length === 3) {
+            if (cards[0].slice(1) === cards[1].slice(1) && cards[1].slice(1) === cards[2].slice(1)) return "三條";
+            return "無效";
+        }
+        if (cards.length === 5) {
+            return "五張牌型";
+        }
+        return `${cards.length}張牌`;
+    }
+
     async function fetchState() {
         if (isProcessing) return;
         isProcessing = true;
@@ -66,11 +83,16 @@
             }
             myTurn = (data.current_player === 0);
             document.getElementById('turn-indicator').innerHTML = myTurn ? "👈 你的回合 👈" : `🤖 AI ${data.current_player} 思考中 ...`;
-            if (data.last_play && data.last_play.length) {
+            
+            if (data.last_play && Array.isArray(data.last_play) && data.last_play.length > 0) {
                 document.getElementById('last-play').innerText = data.last_play.join(', ');
+                const lastType = getHandTypeFromCards(data.last_play);
+                document.getElementById('last-type').innerText = lastType;
             } else {
                 document.getElementById('last-play').innerText = "無 (新一輪)";
+                document.getElementById('last-type').innerText = "-";
             }
+            
             if (data.hands && data.hands[0] && Array.isArray(data.hands[0])) {
                 const rawHand = data.hands[0];
                 currentHandCards = [...rawHand].sort((a,b) => {
