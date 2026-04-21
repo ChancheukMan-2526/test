@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鋤大Dee - 大老二</title>
+    <style>
+        * {
+            user-select: none;
+        }
+        
+        body {
+            font-family: 'Microsoft JhengHei', 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a472a 0%, #0d2818 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            text-align: center;
+            margin: 0 0 20px 0;
+            font-size: 2.5em;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+        }
+        
+        .game-info {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .info-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        
+        .info-card .label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .info-card .value {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        .turn-indicator {
+            background: #f4c542;
+            color: #1a1a2e;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .last-cards {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+        }
+        
+        .hand-area {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 160px;
+        }
+        
+        .hand-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding-left: 10px;
+            border-left: 4px solid #f4c542;
+        }
+        
+        .cards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .card {
+            width: 80px;
+            height: 110px;
+            background: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 4px 8px 12px rgba(0,0,0,0.4);
+        }
+        
+        .card.selected {
+            background: #90EE90;
+            transform: translateY(-10px);
+            box-shadow: 0 0 20px rgba(144, 238, 144, 0.8);
+        }
+        
+        .card[data-suit="♥"], .card[data-suit="♦"] {
+            color: #e74c3c;
+        }
+        
+        .card[data-suit="♠"], .card[data-suit="♣"] {
+            color: #2c3e50;
+        }
+        
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        button {
+            background: #f4c542;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #1a1a2e;
+        }
+        
+        button:hover:not(:disabled) {
+            background: #ffd700;
+            transform: scale(1.05);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 18px;
+        }
+        
+        .message.error {
+            background: rgba(231, 76, 60, 0.3);
+            color: #ff6b6b;
+        }
+        
+        .message.success {
+            background: rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
+        
+        .ai-cards {
+            opacity: 0.7;
+            filter: blur(2px);
+        }
+        
+        @media (max-width: 768px) {
+            .card {
+                width: 60px;
+                height: 85px;
+                font-size: 24px;
+            }
+            .last-cards {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🃏 鋤大Dee (大老二) 🃏</h1>
+        
+        <div class="game-info">
+            <div class="info-card">
+                <div class="label">遊戲狀態</div>
+                <div class="value" id="game-status">進行中</div>
+            </div>
+            <div class="info-card">
+                <div class="label">你的回合</div>
+                <div class="value turn-indicator" id="turn-indicator">-</div>
+            </div>
+            <div class="info-card">
+                <div class="label">上一手牌</div>
+                <div class="value last-cards" id="last-cards">無</div>
+            </div>
+            <div class="info-card">
+                <div class="label">剩餘牌數</div>
+                <div class="value" id="cards-count">13</div>
+            </div>
+        </div>
+        
+        <div class="hand-area">
+            <div class="hand-title">🎴 你的手牌</div>
+            <div class="cards" id="player-hand"></div>
+        </div>
+        
+        <div class="buttons">
+            <button onclick="playCards()">🎯 出牌</button>
+            <button onclick="passTurn()">⏭️ Pass</button>
+            <button onclick="resetGame()">🔄 新遊戲</button>
+        </div>
+        
+        <div id="message" class="message"></div>
+    </div>
+    
+    <script>
+        let selectedIndices = new Set();
+        let myTurn = false;
+        let isLoading = false;
+        
+        async function fetchGameState() {
+            if (isLoading) return;
+            isLoading = true;
+            
+            try {
+                const response = await fetch('/state');
+                const data = await response.json();
+                
+                if (data.game_over) {
+                    document.getElementById('game-status').innerHTML = `🏆 遊戲結束 🏆`;
+                    document.getElementById('turn-indicator').innerHTML = data.winner;
+                    document.getElementById('message').innerHTML = `<div class="message success">🎉 ${data.winner} 獲勝！ 🎉</div>`;
+                    document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+                    document.querySelector('button:last-child').disabled = false;
+                    isLoading = false;
+                    return;
+                }
+                
+                // 更新 UI
+                myTurn = (data.current_player === 0);
+                document.getElementById('turn-indicator').innerHTML = myTurn ? '👈 你的回合 👈' : '🤖 AI 思考中 ...';
+                document.getElementById('game-status').innerHTML = '進行中';
+                
+                if (data.last_cards && data.last_cards.length > 0) {
+                    document.getElementById('last-cards').innerHTML = data.last_cards.join(' ');
+                } else {
+                    document.getElementById('last-cards').innerHTML = '無 (新一輪)';
+                }
+                
+                // 更新手牌
+                if (data.hands && data.hands[0]) {
+                    const hand = data.hands[0];
+                    document.getElementById('cards-count').innerHTML = hand.length;
+                    renderHand(hand);
+                }
+                
+                // AI 自動移動
+                if (!myTurn && !data.game_over) {
+                    setTimeout(() => aiMove(), 500);
+                }
+                
+            } catch (error) {
+                console.error('獲取狀態失敗:', error);
+                showMessage('連線錯誤，請重新整理', 'error');
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        function renderHand(hand) {
+            const container = document.getElementById('player-hand');
+            container.innerHTML = '';
+            selectedIndices.clear();
+            
+            hand.forEach((card, index) => {
+                const suit = card[0];
+                const rank = card.slice(1);
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'card';
+                cardDiv.setAttribute('data-suit', suit);
+                cardDiv.innerHTML = `${suit}${rank}`;
+                cardDiv.onclick = () => toggleCard(index);
+                container.appendChild(cardDiv);
+            });
+        }
+        
+        function toggleCard(index) {
+            if (!myTurn) {
+                showMessage('等待你的回合', 'error');
+                return;
+            }
+            
+            if (selectedIndices.has(index)) {
+                selectedIndices.delete(index);
+            } else {
+                selectedIndices.add(index);
+            }
+            
+            // 更新樣式
+            const cards = document.querySelectorAll('#player-hand .card');
+            cards.forEach((card, i) => {
+                if (selectedIndices.has(i)) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        }
+        
+        async function playCards() {
+            if (!myTurn) {
+                showMessage('等待你的回合', 'error');
+                return;
+            }
+            
+            if (selectedIndices.size === 0) {
+                showMessage('請先選擇要出的牌', 'error');
+                return;
+            }
+            
+            const indices = Array.from(selectedIndices);
+            
+            try {
+                const response = await fetch('/play', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ indices: indices })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.game_over) {
+                        showMessage(`🎉 ${data.winner} 獲勝！ 🎉`, 'success');
+                        fetchGameState();
+                    } else {
+                        showMessage('出牌成功！', 'success');
+                        selectedIndices.clear();
+                        fetchGameState();
+                    }
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('出牌失敗:', error);
+                showMessage('出牌失敗，請重試', 'error');
+            }
+        }
+        
+        async function passTurn() {
+            if (!myTurn) {
+                showMessage('等待你的回合', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/pass');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Pass 成功', 'success');
+                    fetchGameState();
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Pass 失敗:', error);
+                showMessage('Pass 失敗，請重試', 'error');
+            }
+        }
+        
+        async function aiMove() {
+            if (myTurn) return;
+            
+            try {
+                const response = await fetch('/ai');
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.action === 'win') {
+                        showMessage(`🤖 ${data.winner} 獲勝！ 🤖`, 'success');
+                        fetchGameState();
+                    } else if (data.action === 'play') {
+                        showMessage(`AI 出了：${data.cards.join(' ')}`, 'success');
+                        fetchGameState();
+                    } else if (data.action === 'pass') {
+                        showMessage('AI Pass', 'success');
+                        fetchGameState();
+                    }
+                } else if (data.game_over) {
+                    fetchGameState();
+                }
+            } catch (error) {
+                console.error('AI 移動失敗:', error);
+            }
+        }
+        
+        function resetGame() {
+            window.location.href = '/reset';
+        }
+        
+        function showMessage(msg, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="message ${type}">${msg}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 2000);
+        }
+        
+        // 定期更新狀態
+        setInterval(() => {
+            if (!myTurn) {
+                fetchGameState();
+            }
+        }, 2000);
+        
+        // 初始化
+        fetchGameState();
+    </script>
+</body>
+</html>

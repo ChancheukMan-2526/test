@@ -2,377 +2,371 @@ from flask import Flask, render_template, request, session, jsonify, redirect, u
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import random
-import itertools
 from collections import Counter
 
 app = Flask(__name__)
-app.secret_key = "big2_advanced_secret"
+app.secret_key = "big2_secret_key_2024"
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///big2_game.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///big2.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# ---------- 資料庫 ----------
-class GameRecord(db.Model):
-    __tablename__ = "game_records"
-    id = db.Column(db.Integer, primary_key=True)
-    winner = db.Column(db.String(20), nullable=False)
-    create_time = db.Column(db.DateTime, default=datetime.now)
+# ---------- 隨機名字庫 ----------
+AI_NAMES = [
+    '李小龍', '葉問', '成龍', '李連杰', '周星馳', '劉德華', '張學友', '郭富城',
+    '王大明', '陳小美', '林志玲', '蔡依林', '周杰倫', '五月天', '蘇打綠',
+    '功夫熊貓', '龍貓', '皮卡丘', '哆啦A夢', '海賊王', '火影忍者', '死神',
+    '諸葛亮', '司馬懿', '關羽', '張飛', '趙雲', '馬超', '黃忠',
+    '李白', '杜甫', '白居易', '蘇東坡', '李清照',
+    '愛因斯坦', '牛頓', '愛迪生', '特斯拉', '達文西',
+    '柯南', '福爾摩斯', '金田一', '魯邦三世',
+    '鋼鐵人', '美國隊長', '雷神索爾', '黑寡婦', '浩克',
+    '哈利波特', '妙麗', '榮恩', '鄧不利多',
+    '白雪公主', '睡美人', '灰姑娘', '小紅帽'
+]
 
-# ---------- 撲克牌 ----------
-SUITS = ['♣', '♦', '♥', '♠']
-RANKS = ['3','4','5','6','7','8','9','10','J','Q','K','A','2']
-RANK_VALUE = {r:i for i,r in enumerate(RANKS)}
-SUIT_VALUE = {'♣':0, '♦':1, '♥':2, '♠':3}
+def get_random_names():
+    """隨機選取3個不同的AI名字"""
+    return random.sample(AI_NAMES, 3)
+
+# ---------- 撲克牌設定 ----------
+SUITS = ['♠', '♥', '♦', '♣']
+RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
+RANK_VALUE = {r: i for i, r in enumerate(RANKS)}
+SUIT_VALUE = {'♠': 3, '♥': 2, '♦': 1, '♣': 0}
 
 class Card:
     def __init__(self, suit, rank):
         self.suit = suit
         self.rank = rank
+    
     def __repr__(self):
         return f"{self.suit}{self.rank}"
-    def key(self):
-        return (RANK_VALUE[self.rank], SUIT_VALUE[self.suit])
+    
     def __eq__(self, other):
-        return self.rank == other.rank and self.suit == other.suit
-
-def sort_hand(hand):
-    return sorted(hand, key=lambda c: (RANK_VALUE[c.rank], SUIT_VALUE[c.suit]))
+        return self.suit == other.suit and self.rank == other.rank
+    
+    def get_value(self):
+        return (RANK_VALUE[self.rank], SUIT_VALUE[self.suit])
 
 def create_deck():
     return [Card(s, r) for s in SUITS for r in RANKS]
 
-def shuffle_and_deal():
+def sort_cards(cards):
+    return sorted(cards, key=lambda c: c.get_value())
+
+def deal_cards():
     deck = create_deck()
     random.shuffle(deck)
-    hands = [deck[i::4] for i in range(4)]
-    return [sort_hand(h) for h in hands]
+    hands = [sort_cards(deck[i::4]) for i in range(4)]
+    return hands
 
-def get_card_key(card):
-    return (RANK_VALUE[card.rank], SUIT_VALUE[card.suit])
-
-def is_straight(cards):
-    if len(cards) != 5:
-        return False
-    rank_indices = sorted([RANK_VALUE[c.rank] for c in cards])
-    if rank_indices == list(range(rank_indices[0], rank_indices[0]+5)):
-        return True
-    if set(rank_indices) == {0,1,2,12,13}:
-        return True
-    return False
-
-def is_flush(cards):
-    return len(set(c.suit for c in cards)) == 1
-
-def is_straight_flush(cards):
-    return is_straight(cards) and is_flush(cards)
-
-def is_four_of_kind(cards):
-    if len(cards) != 5:
-        return False
-    counts = Counter(c.rank for c in cards)
-    return 4 in counts.values()
-
-def is_full_house(cards):
-    if len(cards) != 5:
-        return False
-    counts = Counter(c.rank for c in cards)
-    return sorted(counts.values()) == [2,3]
-
-def is_three(cards):
-    return len(cards) == 3 and len(set(c.rank for c in cards)) == 1
-
-def is_pair(cards):
-    return len(cards) == 2 and cards[0].rank == cards[1].rank
-
-def get_hand_type(cards):
+# ---------- 牌型判斷 ----------
+def is_valid_card_combination(cards):
     if not cards:
-        return None, None
-    if len(cards) == 1:
-        return 'single', get_card_key(cards[0])
-    if len(cards) == 2 and is_pair(cards):
-        return 'pair', (RANK_VALUE[cards[0].rank],)
-    if len(cards) == 3 and is_three(cards):
-        return 'three', (RANK_VALUE[cards[0].rank],)
-    if len(cards) == 5:
-        if is_straight_flush(cards):
-            ranks = sorted([RANK_VALUE[c.rank] for c in cards])
-            if set(ranks) == {0,1,2,12,13}:
-                max_rank = 2
-            else:
-                max_rank = max(ranks)
-            return 'straight_flush', (max_rank,)
-        if is_four_of_kind(cards):
-            cnt = Counter(c.rank for c in cards)
-            four_rank = [r for r,count in cnt.items() if count==4][0]
-            return 'four', (RANK_VALUE[four_rank],)
-        if is_full_house(cards):
-            cnt = Counter(c.rank for c in cards)
-            three_rank = [r for r,count in cnt.items() if count==3][0]
-            return 'full_house', (RANK_VALUE[three_rank],)
-        if is_flush(cards):
+        return False, None, None
+    
+    n = len(cards)
+    
+    if n == 1:
+        return True, 'single', cards[0].get_value()
+    
+    if n == 2 and cards[0].rank == cards[1].rank:
+        return True, 'pair', (RANK_VALUE[cards[0].rank],)
+    
+    if n == 3 and cards[0].rank == cards[1].rank == cards[2].rank:
+        return True, 'triple', (RANK_VALUE[cards[0].rank],)
+    
+    if n == 5:
+        is_flush = len(set(c.suit for c in cards)) == 1
+        ranks = sorted([RANK_VALUE[c.rank] for c in cards])
+        
+        is_straight = False
+        if ranks == list(range(ranks[0], ranks[0] + 5)):
+            is_straight = True
+        elif ranks == [0, 1, 2, 12, 13]:
+            is_straight = True
+            ranks = [0, 1, 2, 3, 12]
+        
+        if is_flush and is_straight:
+            max_rank = max(ranks)
+            return True, 'straight_flush', (max_rank,)
+        
+        rank_counts = Counter(c.rank for c in cards)
+        if 4 in rank_counts.values():
+            four_rank = [r for r, cnt in rank_counts.items() if cnt == 4][0]
+            return True, 'four', (RANK_VALUE[four_rank],)
+        
+        if sorted(rank_counts.values()) == [2, 3]:
+            three_rank = [r for r, cnt in rank_counts.items() if cnt == 3][0]
+            return True, 'full_house', (RANK_VALUE[three_rank],)
+        
+        if is_flush:
             rank_values = sorted([RANK_VALUE[c.rank] for c in cards], reverse=True)
-            return 'flush', tuple(rank_values)
-        if is_straight(cards):
-            ranks = sorted([RANK_VALUE[c.rank] for c in cards])
-            if set(ranks) == {0,1,2,12,13}:
-                max_rank = 2
-            else:
-                max_rank = max(ranks)
-            return 'straight', (max_rank,)
-    return None, None
+            return True, 'flush', tuple(rank_values)
+        
+        if is_straight:
+            max_rank = max(ranks)
+            return True, 'straight', (max_rank,)
+    
+    return False, None, None
 
-def can_beat(current_type, current_key, last_type, last_key):
-    if current_type is None:
-        return False
-    if last_type is None:
+def can_beat(prev_type, prev_key, curr_type, curr_key):
+    if prev_type is None:
         return True
-    if current_type != last_type:
+    if curr_type is None:
         return False
-    return current_key > last_key
+    if curr_type != prev_type:
+        return False
+    return curr_key > prev_key
 
-def find_smallest_beating_cards(hand, last_cards):
-    if last_cards is None:
+# ---------- AI 邏輯 ----------
+def find_best_move(hand, prev_cards):
+    if prev_cards is None:
         if hand:
-            smallest = min(hand, key=get_card_key)
-            return [smallest], 'single', get_card_key(smallest)
-        return None, None, None
-
-    last_type, last_key = get_hand_type(last_cards)
-    if last_type is None:
-        return None, None, None
-
-    hand_sorted = sort_hand(hand)
-
-    if last_type == 'single':
+            return [hand[0]]
+        return None
+    
+    prev_valid, prev_type, prev_key = is_valid_card_combination(prev_cards)
+    if not prev_valid:
+        return None
+    
+    hand_sorted = sort_cards(hand)
+    
+    if prev_type == 'single':
         for card in hand_sorted:
-            if get_card_key(card) > last_key:
-                return [card], 'single', get_card_key(card)
-    elif last_type == 'pair':
-        rank_counts = Counter(c.rank for c in hand)
-        for rank in sorted(rank_counts.keys(), key=lambda r: RANK_VALUE[r]):
-            if rank_counts[rank] >= 2 and (RANK_VALUE[rank],) > last_key:
-                pair = [c for c in hand if c.rank == rank][:2]
-                return pair, 'pair', (RANK_VALUE[rank],)
-    elif last_type == 'three':
-        rank_counts = Counter(c.rank for c in hand)
-        for rank in sorted(rank_counts.keys(), key=lambda r: RANK_VALUE[r]):
-            if rank_counts[rank] >= 3 and (RANK_VALUE[rank],) > last_key:
-                triple = [c for c in hand if c.rank == rank][:3]
-                return triple, 'three', (RANK_VALUE[rank],)
-    elif last_type in ('straight', 'straight_flush', 'flush'):
-        best = None
-        best_key = None
-        for comb in itertools.combinations(hand_sorted, 5):
-            comb_list = list(comb)
-            t, k = get_hand_type(comb_list)
-            if t == last_type and can_beat(t, k, last_type, last_key):
-                if best_key is None or k < best_key:
-                    best_key = k
-                    best = comb_list
-        if best:
-            return best, last_type, best_key
-    elif last_type == 'four':
-        rank_counts = Counter(c.rank for c in hand)
+            if card.get_value() > prev_key:
+                return [card]
+    
+    elif prev_type == 'pair':
+        for i in range(len(hand_sorted) - 1):
+            if hand_sorted[i].rank == hand_sorted[i + 1].rank:
+                pair_key = (RANK_VALUE[hand_sorted[i].rank],)
+                if pair_key > prev_key:
+                    return [hand_sorted[i], hand_sorted[i + 1]]
+    
+    elif prev_type == 'triple':
+        for i in range(len(hand_sorted) - 2):
+            if hand_sorted[i].rank == hand_sorted[i + 1].rank == hand_sorted[i + 2].rank:
+                triple_key = (RANK_VALUE[hand_sorted[i].rank],)
+                if triple_key > prev_key:
+                    return [hand_sorted[i], hand_sorted[i + 1], hand_sorted[i + 2]]
+    
+    elif prev_type == 'full_house':
+        rank_counts = Counter(c.rank for c in hand_sorted)
         for rank, cnt in rank_counts.items():
-            if cnt >= 4 and (RANK_VALUE[rank],) > last_key:
-                four_cards = [c for c in hand if c.rank == rank][:4]
-                remaining = [c for c in hand if c not in four_cards]
-                if remaining:
-                    kicker = min(remaining, key=get_card_key)
-                    full = four_cards + [kicker]
-                    return full, 'four', (RANK_VALUE[rank],)
-    elif last_type == 'full_house':
-        rank_counts = Counter(c.rank for c in hand)
+            if cnt >= 3:
+                triple_key = (RANK_VALUE[rank],)
+                if triple_key > prev_key:
+                    triple = [c for c in hand_sorted if c.rank == rank][:3]
+                    remaining = [c for c in hand_sorted if c not in triple]
+                    for r2, cnt2 in Counter(c.rank for c in remaining).items():
+                        if cnt2 >= 2:
+                            pair = [c for c in remaining if c.rank == r2][:2]
+                            return triple + pair
+    
+    elif prev_type == 'four':
+        rank_counts = Counter(c.rank for c in hand_sorted)
         for rank, cnt in rank_counts.items():
-            if cnt >= 3 and (RANK_VALUE[rank],) > last_key:
-                three_cards = [c for c in hand if c.rank == rank][:3]
-                remaining = [c for c in hand if c not in three_cards]
-                for r2, cnt2 in Counter(c.rank for c in remaining).items():
-                    if cnt2 >= 2:
-                        pair = [c for c in remaining if c.rank == r2][:2]
-                        return three_cards+pair, 'full_house', (RANK_VALUE[rank],)
-    return None, None, None
+            if cnt >= 4:
+                four_key = (RANK_VALUE[rank],)
+                if four_key > prev_key:
+                    four = [c for c in hand_sorted if c.rank == rank][:4]
+                    remaining = [c for c in hand_sorted if c not in four]
+                    if remaining:
+                        return four + [remaining[0]]
+    
+    elif prev_type in ['straight', 'flush', 'straight_flush']:
+        from itertools import combinations
+        for comb in combinations(hand_sorted, 5):
+            valid, c_type, c_key = is_valid_card_combination(list(comb))
+            if valid and c_type == prev_type and c_key > prev_key:
+                return list(comb)
+    
+    return None
 
-def ai_choose_move(hand, last_cards):
-    cards, _, _ = find_smallest_beating_cards(hand, last_cards)
-    return cards
-
-# ---------- 初始化 ----------
-def init_game_session():
-    hands = shuffle_and_deal()
-    session.clear()
-    session['hands'] = [[c.__repr__() for c in h] for h in hands]
-    session['current_player'] = 0
-    session['last_play'] = None
-    session['last_player'] = None
-    session['winner'] = None
-    session['game_over'] = False
-    session['pass_count'] = 0
-    session['round_owner'] = None
-    session.modified = True
-
+# ---------- Flask 路由 ----------
 @app.route('/')
 def index():
-    if 'hands' not in session or session.get('game_over', True):
-        init_game_session()
-    return render_template('game.html', user="訪客")
+    return render_template('game.html')
+
+@app.route('/start_game', methods=['POST'])
+def start_game():
+    hands = deal_cards()
+    ai_names = get_random_names()
+    
+    session.clear()
+    session['hands'] = [[str(c) for c in h] for h in hands]
+    session['ai_names'] = ai_names
+    session['current_player'] = 0
+    session['last_cards'] = None
+    session['last_player'] = None
+    session['pass_count'] = 0
+    session['game_over'] = False
+    session['winner'] = None
+    session.modified = True
+    
+    return jsonify({'success': True, 'ai_names': ai_names})
 
 @app.route('/reset')
 def reset():
     session.clear()
     return redirect('/')
 
-@app.route('/get_state')
+@app.route('/state')
 def get_state():
-    if not session.get('game_over') and session.get('hands') and len(session['hands'][0]) == 0:
-        session['winner'] = "玩家"
+    if session.get('game_over'):
+        return jsonify({
+            'game_over': True,
+            'winner': session.get('winner'),
+            'hands': session.get('hands'),
+            'current_player': session.get('current_player'),
+            'last_cards': session.get('last_cards'),
+            'cards_count': [len(h) for h in session.get('hands', [[],[],[],[]])],
+            'ai_names': session.get('ai_names', ['AI 1', 'AI 2', 'AI 3'])
+        })
+    
+    if session.get('hands') and session['hands'][0] == []:
         session['game_over'] = True
-        db.session.add(GameRecord(winner="玩家"))
+        session['winner'] = '玩家'
+        db.session.add(GameRecord(winner='玩家'))
         db.session.commit()
     
-    # 確保 last_play 是有效的列表
-    last_play = session.get('last_play')
-    if last_play is None:
-        last_play = []
-    elif not isinstance(last_play, list):
-        last_play = []
-    
     return jsonify({
+        'game_over': session.get('game_over', False),
+        'winner': session.get('winner'),
         'hands': session.get('hands'),
         'current_player': session.get('current_player'),
-        'last_play': last_play,
+        'last_cards': session.get('last_cards'),
         'last_player': session.get('last_player'),
-        'winner': session.get('winner'),
-        'game_over': session.get('game_over', False)
+        'cards_count': [len(h) for h in session.get('hands', [[],[],[],[]])],
+        'ai_names': session.get('ai_names', ['AI 1', 'AI 2', 'AI 3'])
     })
 
 @app.route('/play', methods=['POST'])
-def play():
+def play_cards():
     if session.get('game_over'):
-        return jsonify({'status': 'game_over', 'winner': session['winner']})
+        return jsonify({'success': False, 'message': '遊戲已結束'})
     
-    data = request.get_json()
+    if session['current_player'] != 0:
+        return jsonify({'success': False, 'message': '不是你的回合'})
+    
+    data = request.json
     indices = data.get('indices', [])
-    print("收到出牌請求, indices =", indices)
     
-    current_hand_str = session['hands'][session['current_player']]
-    selected_strs = [current_hand_str[i] for i in indices if i < len(current_hand_str)]
-    if not selected_strs:
-        return jsonify({'status': 'error', 'msg': '請選取手牌中的牌'})
+    if not indices:
+        return jsonify({'success': False, 'message': '請選擇要出的牌'})
     
-    selected = [Card(s[0], s[1:]) for s in selected_strs]
+    hand = [Card(s[0], s[1:]) for s in session['hands'][0]]
+    selected = [hand[i] for i in indices if i < len(hand)]
+    
+    if len(selected) != len(indices):
+        return jsonify({'success': False, 'message': '選擇的牌無效'})
+    
+    valid, card_type, card_key = is_valid_card_combination(selected)
+    if not valid:
+        return jsonify({'success': False, 'message': '無效的牌型'})
     
     last_cards = None
-    if session['last_play']:
-        last_cards = [Card(s[0], s[1:]) for s in session['last_play']]
+    if session['last_cards']:
+        last_cards = [Card(s[0], s[1:]) for s in session['last_cards']]
+        last_valid, last_type, last_key = is_valid_card_combination(last_cards)
+        if not can_beat(last_type, last_key, card_type, card_key):
+            return jsonify({'success': False, 'message': '牌太小，無法壓過上一手'})
     
-    current_type, current_key = get_hand_type(selected)
-    last_type, last_key = get_hand_type(last_cards) if last_cards else (None, None)
-    
-    if current_type is None:
-        return jsonify({'status': 'error', 'msg': '無效牌型'})
-    if not can_beat(current_type, current_key, last_type, last_key):
-        return jsonify({'status': 'error', 'msg': '牌型不符或點數太小'})
-    
-    new_hand_str = [card for i, card in enumerate(current_hand_str) if i not in indices]
-    new_hand = [Card(s[0], s[1:]) for s in new_hand_str]
-    new_hand_sorted = sort_hand(new_hand)
-    session['hands'][session['current_player']] = [c.__repr__() for c in new_hand_sorted]
-    session['last_play'] = selected_strs
-    session['last_player'] = session['current_player']
+    new_hand = [c for c in hand if c not in selected]
+    session['hands'][0] = [str(c) for c in sort_cards(new_hand)]
+    session['last_cards'] = [str(c) for c in selected]
+    session['last_player'] = 0
     session['pass_count'] = 0
-    session['round_owner'] = session['current_player']
     
     if len(new_hand) == 0:
-        session['winner'] = "玩家"
         session['game_over'] = True
-        db.session.add(GameRecord(winner="玩家"))
+        session['winner'] = '玩家'
+        db.session.add(GameRecord(winner='玩家'))
         db.session.commit()
-        return jsonify({'status': 'win', 'winner': "玩家"})
+        return jsonify({'success': True, 'game_over': True, 'winner': '玩家'})
     
-    next_player = (session['current_player'] + 1) % 4
-    session['current_player'] = next_player
+    session['current_player'] = 1
     session.modified = True
-    return jsonify({'status': 'ok', 'next_player': next_player, 'is_ai': next_player != 0})
+    
+    return jsonify({'success': True, 'next_player': 1, 'cards': [str(c) for c in selected]})
 
-@app.route('/pass', methods=['POST'])
+@app.route('/pass')
 def pass_turn():
     if session.get('game_over'):
-        return jsonify({'status': 'game_over'})
+        return jsonify({'success': False, 'message': '遊戲已結束'})
+    
     current = session['current_player']
-    if current != 0:
-        return jsonify({'status': 'error', 'msg': '不是你的回合'})
     
-    session['pass_count'] += 1
-    
-    # 檢查是否三個人連續 Pass
-    if session['pass_count'] >= 3:
-        # 清空 last_play，開始新一輪
-        session['last_play'] = None
-        session['last_player'] = None
-        session['pass_count'] = 0
-        # 上一輪出牌的人開始新的一輪
-        if session.get('round_owner') is not None:
-            session['current_player'] = session['round_owner']
-        else:
-            session['current_player'] = 0
-        session['round_owner'] = None
-    else:
-        session['current_player'] = (current + 1) % 4
-    
-    session.modified = True
-    return jsonify({'status': 'ok', 'next_player': session['current_player']})
-
-@app.route('/ai_move', methods=['GET'])
-def ai_move():
-    if session.get('game_over'):
-        return jsonify({'status': 'game_over'})
-    
-    player = session['current_player']
-    if player == 0:
-        return jsonify({'status': 'player_turn'})
-    
-    hand_str = session['hands'][player]
-    hand = [Card(s[0], s[1:]) for s in hand_str]
-    last_cards = None
-    if session['last_play']:
-        last_cards = [Card(s[0], s[1:]) for s in session['last_play']]
-    
-    played = ai_choose_move(hand, last_cards)
-    if played is None:
+    if current == 0:
         session['pass_count'] += 1
+        
         if session['pass_count'] >= 3:
-            session['last_play'] = None
-            session['last_player'] = None
+            session['last_cards'] = None
             session['pass_count'] = 0
-            if session.get('round_owner') is not None:
-                session['current_player'] = session['round_owner']
+            if session['last_player'] is not None:
+                session['current_player'] = session['last_player']
             else:
                 session['current_player'] = 0
-            session['round_owner'] = None
         else:
-            session['current_player'] = (player + 1) % 4
+            session['current_player'] = (current + 1) % 4
+        
         session.modified = True
-        return jsonify({'status': 'pass', 'next_player': session['current_player']})
+        return jsonify({'success': True, 'next_player': session['current_player']})
+    
+    return jsonify({'success': False, 'message': '不是你的回合'})
+
+@app.route('/ai')
+def ai_move():
+    if session.get('game_over'):
+        return jsonify({'success': False, 'game_over': True})
+    
+    current = session['current_player']
+    if current == 0:
+        return jsonify({'success': False, 'message': '玩家的回合'})
+    
+    hand = [Card(s[0], s[1:]) for s in session['hands'][current]]
+    last_cards = None
+    if session['last_cards']:
+        last_cards = [Card(s[0], s[1:]) for s in session['last_cards']]
+    
+    move = find_best_move(hand, last_cards)
+    
+    if move is None:
+        session['pass_count'] += 1
+        
+        if session['pass_count'] >= 3:
+            session['last_cards'] = None
+            session['pass_count'] = 0
+            if session['last_player'] is not None:
+                session['current_player'] = session['last_player']
+            else:
+                session['current_player'] = 0
+        else:
+            session['current_player'] = (current + 1) % 4
+        
+        session.modified = True
+        return jsonify({'success': True, 'action': 'pass', 'next_player': session['current_player']})
     else:
-        new_hand = [c for c in hand if c not in played]
-        new_hand_sorted = sort_hand(new_hand)
-        session['hands'][player] = [c.__repr__() for c in new_hand_sorted]
-        session['last_play'] = [c.__repr__() for c in played]
-        session['last_player'] = player
+        new_hand = [c for c in hand if c not in move]
+        session['hands'][current] = [str(c) for c in sort_cards(new_hand)]
+        session['last_cards'] = [str(c) for c in move]
+        session['last_player'] = current
         session['pass_count'] = 0
-        session['round_owner'] = player
+        
         if len(new_hand) == 0:
-            winner_name = f"AI {player}"
-            session['winner'] = winner_name
+            ai_names = session.get('ai_names', ['AI 1', 'AI 2', 'AI 3'])
+            winner_name = ai_names[current - 1] if current <= 3 else f'AI {current}'
             session['game_over'] = True
+            session['winner'] = winner_name
             db.session.add(GameRecord(winner=winner_name))
             db.session.commit()
-            return jsonify({'status': 'win', 'winner': winner_name})
-        session['current_player'] = (player + 1) % 4
+            return jsonify({'success': True, 'action': 'win', 'winner': winner_name})
+        
+        session['current_player'] = (current + 1) % 4
         session.modified = True
-        return jsonify({'status': 'play', 'cards': [c.__repr__() for c in played], 'next_player': session['current_player']})
+        return jsonify({'success': True, 'action': 'play', 'cards': [str(c) for c in move], 'next_player': session['current_player']})
 
 if __name__ == '__main__':
     with app.app_context():

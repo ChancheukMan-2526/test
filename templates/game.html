@@ -1,242 +1,790 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-    <title>鋤大Dee - 終極版</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鋤大Dee - 四人對戰</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #2e5a2e; color: white; }
-        .game-container { max-width: 1200px; margin: auto; background: #1e3a1e; padding: 20px; border-radius: 20px; }
-        .hand { display: flex; justify-content: center; flex-wrap: wrap; margin: 20px; min-height: 120px; }
-        .card {
-            width: 70px; height: 100px; border: 2px solid gold; border-radius: 10px;
-            margin: 5px; display: inline-flex; align-items: center; justify-content: center;
-            font-size: 28px; background: white; color: black; cursor: pointer;
-            transition: 0.2s; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
             user-select: none;
         }
-        .card.selected { background: #aaffaa; border: 4px solid red; transform: scale(1.02); }
-        .info { background: #0f2b0f; padding: 15px; border-radius: 15px; margin: 15px; }
-        button { background: #ffaa33; border: none; padding: 10px 20px; font-size: 18px; border-radius: 30px; margin: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #ffcc55; }
-        #last-play { font-size: 24px; font-weight: bold; background: #000000aa; display: inline-block; padding: 5px 15px; border-radius: 30px; }
-        #message { font-size: 20px; margin-top: 20px; }
-        .turn-indicator { font-size: 22px; background: #d4af37; color: black; display: inline-block; padding: 5px 20px; border-radius: 40px; }
-        .error-msg { color: #ffaaaa; background: #660000; padding: 10px; border-radius: 10px; }
+        
+        body {
+            font-family: 'Microsoft JhengHei', 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a472a 0%, #0d2818 100%);
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* 載入畫面 */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a472a 0%, #0a1a0f 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+        
+        .game-title {
+            font-size: 64px;
+            margin-bottom: 30px;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+            animation: fadeIn 1s ease;
+        }
+        
+        .start-btn {
+            background: linear-gradient(135deg, #f4c542 0%, #e6a817 100%);
+            border: none;
+            padding: 15px 50px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            color: #1a1a2e;
+            transition: transform 0.2s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 遊戲主畫面 */
+        .game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            display: none;
+        }
+        
+        /* 玩家位置 */
+        .player {
+            position: absolute;
+            text-align: center;
+            z-index: 10;
+        }
+        
+        .player-bottom {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+        }
+        
+        .player-top {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+        }
+        
+        .player-left {
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 200px;
+        }
+        
+        .player-right {
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 200px;
+        }
+        
+        .player-info {
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            padding: 10px 20px;
+            display: inline-block;
+            margin-bottom: 10px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .player-name {
+            font-size: 18px;
+        }
+        
+        .player-cards-count {
+            font-size: 24px;
+            color: #f4c542;
+        }
+        
+        .turn-indicator-small {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: gray;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .turn-indicator-small.active {
+            background: #f4c542;
+            box-shadow: 0 0 10px #f4c542;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* 手牌區域 */
+        .hand-cards {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .card {
+            width: 80px;
+            height: 110px;
+            background: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card.selected {
+            background: #90EE90;
+            transform: translateY(-15px);
+            box-shadow: 0 0 20px rgba(144, 238, 144, 0.8);
+        }
+        
+        .card[data-suit="♥"], .card[data-suit="♦"] {
+            color: #e74c3c;
+        }
+        
+        .card[data-suit="♠"], .card[data-suit="♣"] {
+            color: #2c3e50;
+        }
+        
+        /* 對手的牌（背面） */
+        .card-back {
+            background: linear-gradient(135deg, #2c3e50 0%, #1a1a2e 100%);
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.1) 0px, rgba(255,255,255,0.1) 2px, transparent 2px, transparent 8px);
+            position: relative;
+        }
+        
+        .card-back::before {
+            content: "?";
+            font-size: 40px;
+            color: rgba(255,255,255,0.3);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        /* 桌面中央 */
+        .center-area {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 5;
+        }
+        
+        .last-cards-area {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            padding: 20px;
+            min-width: 300px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .last-cards-title {
+            color: white;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .last-cards {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            min-height: 120px;
+        }
+        
+        .last-card {
+            width: 70px;
+            height: 100px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: bold;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .last-card[data-suit="♥"], .last-card[data-suit="♦"] {
+            color: #e74c3c;
+        }
+        
+        .last-card[data-suit="♠"], .last-card[data-suit="♣"] {
+            color: #2c3e50;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        /* 控制按鈕 */
+        .controls {
+            position: absolute;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 20;
+        }
+        
+        .control-btn {
+            background: linear-gradient(135deg, #f4c542 0%, #e6a817 100%);
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            color: #1a1a2e;
+        }
+        
+        .control-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* 訊息提示 */
+        .message-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 20px;
+            z-index: 100;
+            animation: fadeInOut 2s ease;
+            pointer-events: none;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+        
+        /* 贏家畫面 */
+        .winner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .winner-content {
+            text-align: center;
+            color: white;
+        }
+        
+        .winner-text {
+            font-size: 48px;
+            margin-bottom: 30px;
+            color: #f4c542;
+        }
+        
+        .play-again-btn {
+            background: linear-gradient(135deg, #f4c542 0%, #e6a817 100%);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .card, .last-card {
+                width: 55px;
+                height: 75px;
+                font-size: 20px;
+            }
+            .controls {
+                bottom: 130px;
+            }
+            .player-left, .player-right {
+                width: 120px;
+            }
+            .game-title {
+                font-size: 40px;
+            }
+            .start-btn {
+                padding: 10px 30px;
+                font-size: 18px;
+            }
+        }
     </style>
 </head>
 <body>
-<div class="game-container">
-    <h1>🃏 鋤大Dee - 終極版 🃏</h1>
-    <div class="info">
-        <div class="turn-indicator" id="turn-indicator">載入中...</div>
-        <div>上一家出的牌：<span id="last-play">無</span></div>
-        <div>牌型：<span id="last-type">-</span></div>
+    <!-- 載入畫面 -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="game-title">🃏 鋤大Dee 🃏</div>
+            <div style="font-size: 18px; margin-bottom: 30px;">大老二 · 四人對戰</div>
+            <button class="start-btn" onclick="startGame()">開始遊戲</button>
+        </div>
     </div>
-    <div class="hand" id="hand-container">
-        <div class="error-msg">載入手牌中...</div>
+    
+    <!-- 遊戲主畫面 -->
+    <div class="game-container" id="gameContainer">
+        <!-- 上方玩家 (AI 1) -->
+        <div class="player player-top">
+            <div class="player-info">
+                <span class="player-name">🤖 AI 1</span>
+                <span class="turn-indicator-small" id="turnTop"></span>
+                <div class="player-cards-count" id="topCardsCount">13</div>
+            </div>
+            <div class="hand-cards" id="topHand"></div>
+        </div>
+        
+        <!-- 左方玩家 (AI 2) -->
+        <div class="player player-left">
+            <div class="player-info">
+                <span class="player-name">🤖 AI 2</span>
+                <span class="turn-indicator-small" id="turnLeft"></span>
+                <div class="player-cards-count" id="leftCardsCount">13</div>
+            </div>
+            <div class="hand-cards" id="leftHand"></div>
+        </div>
+        
+        <!-- 右方玩家 (AI 3) -->
+        <div class="player player-right">
+            <div class="player-info">
+                <span class="player-name">🤖 AI 3</span>
+                <span class="turn-indicator-small" id="turnRight"></span>
+                <div class="player-cards-count" id="rightCardsCount">13</div>
+            </div>
+            <div class="hand-cards" id="rightHand"></div>
+        </div>
+        
+        <!-- 下方玩家 (玩家) -->
+        <div class="player player-bottom">
+            <div class="player-info">
+                <span class="player-name">👤 玩家</span>
+                <span class="turn-indicator-small" id="turnBottom"></span>
+                <div class="player-cards-count" id="bottomCardsCount">13</div>
+            </div>
+            <div class="hand-cards" id="bottomHand"></div>
+        </div>
+        
+        <!-- 桌面中央 -->
+        <div class="center-area">
+            <div class="last-cards-area">
+                <div class="last-cards-title">📌 上一手牌</div>
+                <div class="last-cards" id="lastCardsArea">
+                    <div style="color: rgba(255,255,255,0.5);">等待出牌</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 控制按鈕 -->
+        <div class="controls">
+            <button class="control-btn" id="playBtn" onclick="playCards()">🎯 出牌</button>
+            <button class="control-btn" id="passBtn" onclick="passTurn()">⏭️ Pass</button>
+        </div>
     </div>
-    <div>
-        <button onclick="playCards()">🔥 出牌</button>
-        <button onclick="passTurn()">🚫 Pass</button>
-        <button onclick="resetGame()">🔄 新遊戲</button>
-    </div>
-    <div id="message"></div>
-</div>
-
-<script>
-    let myTurn = false;
-    let isProcessing = false;
-    let currentHandCards = [];
-    let selectedIndices = new Set();
-
-    const rankOrder = {'3':0,'4':1,'5':2,'6':3,'7':4,'8':5,'9':6,'10':7,'J':8,'Q':9,'K':10,'A':11,'2':12};
-    const suitOrder = {'♣':0,'♦':1,'♥':2,'♠':3};
-
-    function getHandTypeFromCards(cards) {
-        if (!cards || cards.length === 0) return "-";
-        if (cards.length === 1) return "單張";
-        if (cards.length === 2) {
-            if (cards[0].slice(1) === cards[1].slice(1)) return "對子";
-            return "無效";
-        }
-        if (cards.length === 3) {
-            if (cards[0].slice(1) === cards[1].slice(1) && cards[1].slice(1) === cards[2].slice(1)) return "三條";
-            return "無效";
-        }
-        if (cards.length === 5) {
-            return "五張牌型";
-        }
-        return `${cards.length}張牌`;
-    }
-
-    async function fetchState() {
-        if (isProcessing) return;
-        isProcessing = true;
-        try {
-            const res = await fetch('/get_state');
-            const data = await res.json();
-            if (data.game_over) {
-                document.getElementById('message').innerHTML = `<h2>🏆 贏家：${data.winner} 🏆</h2>`;
-                document.getElementById('turn-indicator').innerText = "遊戲結束";
-                document.getElementById('hand-container').innerHTML = '<div class="error-msg">遊戲已結束，點選「新遊戲」繼續</div>';
-                isProcessing = false;
-                return;
+    
+    <script>
+        let selectedIndices = new Set();
+        let myTurn = false;
+        let isLoading = false;
+        let gameActive = false;
+        let stateInterval = null;
+        
+        const playerPositions = ['bottom', 'top', 'left', 'right'];
+        
+        async function startGame() {
+            console.log("開始遊戲按鈕被點擊");
+            try {
+                const response = await fetch('/start_game', { method: 'POST' });
+                const data = await response.json();
+                console.log("開始遊戲回應:", data);
+                if (data.success) {
+                    const loadingScreen = document.getElementById('loadingScreen');
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                        document.getElementById('gameContainer').style.display = 'block';
+                        gameActive = true;
+                        fetchGameState();
+                        // 設置定時器定期更新狀態
+                        if (stateInterval) clearInterval(stateInterval);
+                        stateInterval = setInterval(() => {
+                            if (gameActive && !myTurn) {
+                                fetchGameState();
+                            }
+                        }, 2000);
+                    }, 500);
+                } else {
+                    alert('開始遊戲失敗，請重試');
+                }
+            } catch (error) {
+                console.error('開始遊戲失敗:', error);
+                alert('開始遊戲失敗，請檢查伺服器是否正常執行');
             }
-            myTurn = (data.current_player === 0);
-            document.getElementById('turn-indicator').innerHTML = myTurn ? "👈 你的回合 👈" : `🤖 AI ${data.current_player} 思考中 ...`;
+        }
+        
+        async function fetchGameState() {
+            if (!gameActive || isLoading) return;
+            isLoading = true;
             
-            if (data.last_play && Array.isArray(data.last_play) && data.last_play.length > 0) {
-                document.getElementById('last-play').innerText = data.last_play.join(', ');
-                const lastType = getHandTypeFromCards(data.last_play);
-                document.getElementById('last-type').innerText = lastType;
-            } else {
-                document.getElementById('last-play').innerText = "無 (新一輪)";
-                document.getElementById('last-type').innerText = "-";
-            }
-            
-            if (data.hands && data.hands[0] && Array.isArray(data.hands[0])) {
-                const rawHand = data.hands[0];
-                currentHandCards = [...rawHand].sort((a,b) => {
-                    let rankA = a.slice(1);
-                    let rankB = b.slice(1);
-                    if (rankOrder[rankA] !== rankOrder[rankB]) return rankOrder[rankA] - rankOrder[rankB];
-                    return suitOrder[a[0]] - suitOrder[b[0]];
-                });
-                selectedIndices.clear();
-                renderHand();
-            } else {
-                console.error("無效的手牌資料", data);
-                document.getElementById('hand-container').innerHTML = '<div class="error-msg">錯誤：無法讀取手牌，請按「新遊戲」</div>';
-            }
-            if (!myTurn && !data.game_over) {
-                setTimeout(() => aiMove(), 500);
-            }
-        } catch (err) {
-            console.error("fetchState 錯誤", err);
-            document.getElementById('hand-container').innerHTML = '<div class="error-msg">連線錯誤，請重新整理頁面</div>';
-        } finally {
-            isProcessing = false;
-        }
-    }
-
-    function renderHand() {
-        const container = document.getElementById('hand-container');
-        if (!currentHandCards || currentHandCards.length === 0) {
-            container.innerHTML = '<div class="error-msg">⚠️ 你沒有手牌！遊戲可能已結束，請按「新遊戲」</div>';
-            return;
-        }
-        container.innerHTML = '';
-        currentHandCards.forEach((card, idx) => {
-            const div = document.createElement('div');
-            div.className = 'card';
-            if (selectedIndices.has(idx)) div.classList.add('selected');
-            div.innerText = card;
-            div.onclick = (e) => {
-                e.stopPropagation();
-                if (!myTurn) {
-                    alert("等待你的回合");
+            try {
+                const response = await fetch('/state');
+                const data = await response.json();
+                console.log("遊戲狀態:", data);
+                
+                if (data.game_over) {
+                    showWinner(data.winner);
+                    isLoading = false;
                     return;
                 }
-                if (selectedIndices.has(idx)) {
-                    selectedIndices.delete(idx);
-                } else {
-                    selectedIndices.add(idx);
+                
+                // 更新每位玩家的牌數
+                if (data.cards_count) {
+                    updateCardsCount(data.cards_count);
                 }
-                renderHand();
+                
+                // 更新回合指示器
+                updateTurnIndicator(data.current_player);
+                myTurn = (data.current_player === 0);
+                
+                // 更新玩家手牌
+                if (data.hands && data.hands[0]) {
+                    renderPlayerHand(data.hands[0]);
+                    document.getElementById('bottomCardsCount').innerHTML = data.hands[0].length;
+                }
+                
+                // 更新桌面中央的牌
+                if (data.last_cards && data.last_cards.length > 0) {
+                    renderLastCards(data.last_cards);
+                } else {
+                    const lastCardsArea = document.getElementById('lastCardsArea');
+                    lastCardsArea.innerHTML = '<div style="color: rgba(255,255,255,0.5);">新一輪</div>';
+                }
+                
+                // 渲染對手手牌（背面）
+                renderOpponentHands(data.hands);
+                
+                // AI 自動移動
+                if (!myTurn && !data.game_over) {
+                    setTimeout(() => aiMove(), 500);
+                }
+                
+            } catch (error) {
+                console.error('獲取狀態失敗:', error);
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        function updateCardsCount(counts) {
+            document.getElementById('topCardsCount').innerHTML = counts[1] || 13;
+            document.getElementById('leftCardsCount').innerHTML = counts[2] || 13;
+            document.getElementById('rightCardsCount').innerHTML = counts[3] || 13;
+        }
+        
+        function updateTurnIndicator(currentPlayer) {
+            const indicators = {
+                bottom: document.getElementById('turnBottom'),
+                top: document.getElementById('turnTop'),
+                left: document.getElementById('turnLeft'),
+                right: document.getElementById('turnRight')
             };
-            container.appendChild(div);
-        });
-    }
-
-    async function playCards() {
-        if (!myTurn) {
-            alert("等待你的回合");
-            return;
-        }
-        const selected = Array.from(selectedIndices);
-        if (selected.length === 0) {
-            alert("請選取要出的牌");
-            return;
-        }
-        if (isProcessing) return;
-        isProcessing = true;
-        try {
-            const res = await fetch('/play', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({indices: selected})
+            
+            Object.values(indicators).forEach(ind => {
+                if (ind) ind.classList.remove('active');
             });
-            const data = await res.json();
-            if (data.status === 'error') {
-                alert(data.msg);
-            } else if (data.status === 'win') {
-                alert(`🎉 你贏了！ 🎉`);
-                location.reload();
+            
+            const playerKey = playerPositions[currentPlayer];
+            if (indicators[playerKey]) {
+                indicators[playerKey].classList.add('active');
+            }
+        }
+        
+        function renderPlayerHand(hand) {
+            const container = document.getElementById('bottomHand');
+            if (!container) return;
+            container.innerHTML = '';
+            selectedIndices.clear();
+            
+            hand.forEach((card, index) => {
+                const suit = card[0];
+                const rank = card.slice(1);
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'card';
+                cardDiv.setAttribute('data-suit', suit);
+                cardDiv.innerHTML = `${suit}${rank}`;
+                cardDiv.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleCard(index);
+                };
+                container.appendChild(cardDiv);
+            });
+        }
+        
+        function renderOpponentHands(hands) {
+            const positions = ['topHand', 'leftHand', 'rightHand'];
+            for (let i = 0; i < positions.length; i++) {
+                const container = document.getElementById(positions[i]);
+                if (!container) continue;
+                container.innerHTML = '';
+                const cardCount = hands[i + 1] ? hands[i + 1].length : 13;
+                const displayCount = Math.min(cardCount, 8);
+                for (let j = 0; j < displayCount; j++) {
+                    const cardBack = document.createElement('div');
+                    cardBack.className = 'card card-back';
+                    container.appendChild(cardBack);
+                }
+                if (cardCount > 8) {
+                    const more = document.createElement('div');
+                    more.className = 'card';
+                    more.style.background = 'rgba(0,0,0,0.5)';
+                    more.style.color = 'white';
+                    more.style.fontSize = '20px';
+                    more.innerHTML = `+${cardCount - 8}`;
+                    container.appendChild(more);
+                }
+            }
+        }
+        
+        function renderLastCards(cards) {
+            const container = document.getElementById('lastCardsArea');
+            container.innerHTML = '';
+            cards.forEach(card => {
+                const suit = card[0];
+                const rank = card.slice(1);
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'last-card';
+                cardDiv.setAttribute('data-suit', suit);
+                cardDiv.innerHTML = `${suit}${rank}`;
+                if (suit === '♥' || suit === '♦') {
+                    cardDiv.style.color = '#e74c3c';
+                } else {
+                    cardDiv.style.color = '#2c3e50';
+                }
+                container.appendChild(cardDiv);
+            });
+        }
+        
+        function toggleCard(index) {
+            if (!myTurn) {
+                showMessage('等待你的回合');
                 return;
-            } else {
-                await fetchState();
             }
-        } catch (err) {
-            console.error(err);
-            alert("出牌失敗，請重試");
-        } finally {
-            isProcessing = false;
-        }
-    }
-
-    async function passTurn() {
-        if (!myTurn) {
-            alert("現在不能 Pass");
-            return;
-        }
-        if (isProcessing) return;
-        isProcessing = true;
-        try {
-            const res = await fetch('/pass', {method: 'POST'});
-            const data = await res.json();
-            if (data.status === 'ok') {
-                await fetchState();
+            
+            if (selectedIndices.has(index)) {
+                selectedIndices.delete(index);
             } else {
-                alert(data.msg);
+                selectedIndices.add(index);
             }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            isProcessing = false;
+            
+            const cards = document.querySelectorAll('#bottomHand .card');
+            cards.forEach((card, i) => {
+                if (selectedIndices.has(i)) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
         }
-    }
-
-    async function aiMove() {
-        if (myTurn) return;
-        if (isProcessing) return;
-        isProcessing = true;
-        try {
-            const res = await fetch('/ai_move');
-            const data = await res.json();
-            if (data.status === 'win') {
-                alert(`🤖 ${data.winner} 獲勝！`);
-                location.reload();
-            } else if (data.status === 'play' || data.status === 'pass') {
-                await fetchState();
-            } else {
-                await fetchState();
+        
+        async function playCards() {
+            if (!myTurn) {
+                showMessage('等待你的回合');
+                return;
             }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            isProcessing = false;
+            
+            if (selectedIndices.size === 0) {
+                showMessage('請先選擇要出的牌');
+                return;
+            }
+            
+            const indices = Array.from(selectedIndices);
+            console.log("出牌索引:", indices);
+            
+            try {
+                const response = await fetch('/play', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ indices: indices })
+                });
+                const data = await response.json();
+                console.log("出牌回應:", data);
+                
+                if (data.success) {
+                    if (data.game_over) {
+                        showWinner(data.winner);
+                    } else {
+                        showMessage('出牌成功！');
+                        selectedIndices.clear();
+                        await fetchGameState();
+                    }
+                } else {
+                    showMessage(data.message || '出牌失敗');
+                }
+            } catch (error) {
+                console.error('出牌失敗:', error);
+                showMessage('出牌失敗，請重試');
+            }
         }
-    }
-
-    function resetGame() {
-        fetch('/reset').then(() => location.reload());
-    }
-
-    fetchState();
-    setInterval(() => {
-        if (!myTurn && !document.querySelector('#message h2')) {
-            fetchState();
+        
+        async function passTurn() {
+            if (!myTurn) {
+                showMessage('等待你的回合');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/pass');
+                const data = await response.json();
+                console.log("Pass回應:", data);
+                
+                if (data.success) {
+                    showMessage('Pass');
+                    await fetchGameState();
+                } else {
+                    showMessage(data.message || 'Pass失敗');
+                }
+            } catch (error) {
+                console.error('Pass失敗:', error);
+                showMessage('Pass失敗，請重試');
+            }
         }
-    }, 2000);
-</script>
+        
+        async function aiMove() {
+            if (myTurn || !gameActive) return;
+            
+            try {
+                const response = await fetch('/ai');
+                const data = await response.json();
+                console.log("AI回應:", data);
+                
+                if (data.success) {
+                    if (data.action === 'win') {
+                        showWinner(data.winner);
+                    } else if (data.action === 'play') {
+                        showMessage(`AI 出了 ${data.cards.length} 張牌`);
+                        await fetchGameState();
+                    } else if (data.action === 'pass') {
+                        showMessage('AI Pass');
+                        await fetchGameState();
+                    }
+                } else if (data.game_over) {
+                    showWinner(data.winner);
+                }
+            } catch (error) {
+                console.error('AI移動失敗:', error);
+            }
+        }
+        
+        function showMessage(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'message-toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 2000);
+        }
+        
+        function showWinner(winner) {
+            gameActive = false;
+            if (stateInterval) clearInterval(stateInterval);
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'winner-overlay';
+            overlay.innerHTML = `
+                <div class="winner-content">
+                    <div class="winner-text">🏆 ${winner} 獲勝！ 🏆</div>
+                    <button class="play-again-btn" onclick="location.reload()">🔄 再玩一局</button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        
+        function resetGame() {
+            window.location.href = '/reset';
+        }
+        
+        // 頁面加載時檢查是否有遊戲進行中
+        window.onload = function() {
+            console.log("頁面加載完成");
+        };
+    </script>
 </body>
 </html>
