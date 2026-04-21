@@ -125,6 +125,7 @@
         
         .player-name {
             font-size: 18px;
+            white-space: nowrap;
         }
         
         .player-cards-count {
@@ -308,27 +309,30 @@
             cursor: not-allowed;
         }
         
-        /* 訊息提示 */
+        /* 訊息提示 - 移至底部，不擋中央 */
         .message-toast {
             position: fixed;
-            top: 50%;
+            bottom: 260px;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translate(-50%, 0);
             background: rgba(0, 0, 0, 0.9);
             color: white;
-            padding: 15px 30px;
+            padding: 12px 28px;
             border-radius: 50px;
-            font-size: 20px;
+            font-size: 18px;
             z-index: 100;
             animation: fadeInOut 2s ease;
             pointer-events: none;
+            white-space: nowrap;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         
         @keyframes fadeInOut {
-            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-            15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            0% { opacity: 0; transform: translate(-50%, 20px); }
+            15% { opacity: 1; transform: translate(-50%, 0); }
+            85% { opacity: 1; transform: translate(-50%, 0); }
+            100% { opacity: 0; transform: translate(-50%, -20px); }
         }
         
         /* 贏家畫面 */
@@ -387,6 +391,17 @@
                 padding: 10px 30px;
                 font-size: 18px;
             }
+            .message-toast {
+                bottom: 210px;
+                font-size: 14px;
+                padding: 8px 20px;
+                white-space: nowrap;
+            }
+            .player-name {
+                font-size: 14px;
+                white-space: normal;
+                word-break: keep-all;
+            }
         }
     </style>
 </head>
@@ -405,7 +420,7 @@
         <!-- 上方玩家 (AI 1) -->
         <div class="player player-top">
             <div class="player-info">
-                <span class="player-name">🤖 AI 1</span>
+                <span class="player-name" id="topPlayerName">🤖 AI 1</span>
                 <span class="turn-indicator-small" id="turnTop"></span>
                 <div class="player-cards-count" id="topCardsCount">13</div>
             </div>
@@ -415,7 +430,7 @@
         <!-- 左方玩家 (AI 2) -->
         <div class="player player-left">
             <div class="player-info">
-                <span class="player-name">🤖 AI 2</span>
+                <span class="player-name" id="leftPlayerName">🤖 AI 2</span>
                 <span class="turn-indicator-small" id="turnLeft"></span>
                 <div class="player-cards-count" id="leftCardsCount">13</div>
             </div>
@@ -425,7 +440,7 @@
         <!-- 右方玩家 (AI 3) -->
         <div class="player player-right">
             <div class="player-info">
-                <span class="player-name">🤖 AI 3</span>
+                <span class="player-name" id="rightPlayerName">🤖 AI 3</span>
                 <span class="turn-indicator-small" id="turnRight"></span>
                 <div class="player-cards-count" id="rightCardsCount">13</div>
             </div>
@@ -468,6 +483,18 @@
         
         const playerPositions = ['bottom', 'top', 'left', 'right'];
         
+        // 更新AI玩家名稱 (根據後端傳回的隨機名稱)
+        function updateAINames(aiNames) {
+            if (!aiNames || aiNames.length < 3) return;
+            // 順序: top -> left -> right 對應 aiNames 索引 0,1,2
+            const topNameElem = document.getElementById('topPlayerName');
+            const leftNameElem = document.getElementById('leftPlayerName');
+            const rightNameElem = document.getElementById('rightPlayerName');
+            if (topNameElem) topNameElem.innerHTML = `🤖 ${aiNames[0]}`;
+            if (leftNameElem) leftNameElem.innerHTML = `🤖 ${aiNames[1]}`;
+            if (rightNameElem) rightNameElem.innerHTML = `🤖 ${aiNames[2]}`;
+        }
+        
         async function startGame() {
             console.log("開始遊戲按鈕被點擊");
             try {
@@ -475,6 +502,9 @@
                 const data = await response.json();
                 console.log("開始遊戲回應:", data);
                 if (data.success) {
+                    // 先更新一次AI名稱（確保載入畫面結束後立即顯示）
+                    if (data.ai_names) updateAINames(data.ai_names);
+                    
                     const loadingScreen = document.getElementById('loadingScreen');
                     loadingScreen.style.opacity = '0';
                     setTimeout(() => {
@@ -507,6 +537,11 @@
                 const response = await fetch('/state');
                 const data = await response.json();
                 console.log("遊戲狀態:", data);
+                
+                // 更新AI隨機名稱（每次狀態刷新時同步，確保新遊戲顯示正確）
+                if (data.ai_names) {
+                    updateAINames(data.ai_names);
+                }
                 
                 if (data.game_over) {
                     showWinner(data.winner);
@@ -752,6 +787,7 @@
             }
         }
         
+        // 訊息提示 - 位置已透過CSS調整至底部
         function showMessage(msg) {
             const toast = document.createElement('div');
             toast.className = 'message-toast';
